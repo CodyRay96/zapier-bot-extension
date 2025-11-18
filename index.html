@@ -1,13 +1,460 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Zapier Bot</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pumpkin Seed Frenzy</title>
     <style>
-      body, html { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-      iframe { width: 100%; height: 100%; border: none; }
+      :root {
+        color-scheme: dark;
+        font-family: "Baloo 2", "Comic Sans MS", system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --bg: radial-gradient(circle at top, #23262d 0%, #0f1115 65%);
+        --pumpkin-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+        --seed: #f9e1a5;
+      }
+
+      * {
+        box-sizing: border-box;
+        user-select: none;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: #f5f7ff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem;
+      }
+
+      .game-shell {
+        width: min(1100px, 100%);
+        height: min(700px, 95vh);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
+        border-radius: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 50px 120px rgba(0, 0, 0, 0.45);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      header {
+        padding: 1.5rem 2rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 1rem;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 2.6vw, 2.8rem);
+        letter-spacing: 0.04em;
+      }
+
+      .scoreboard {
+        text-align: right;
+      }
+
+      .scoreboard span {
+        display: block;
+        font-size: 0.9rem;
+        opacity: 0.75;
+      }
+
+      .scoreboard strong {
+        font-size: 2rem;
+        font-weight: 800;
+      }
+
+      .playfield {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 0 2rem 2rem;
+      }
+
+      .instructions {
+        font-size: 0.95rem;
+        opacity: 0.75;
+      }
+
+      .bin {
+        position: relative;
+        flex: 1;
+        border-radius: 30px;
+        border: 2px dashed rgba(255, 255, 255, 0.2);
+        background: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), transparent);
+        overflow: hidden;
+      }
+
+      .pumpkin {
+        position: absolute;
+        width: clamp(60px, 6vw, 90px);
+        aspect-ratio: 1 / 1;
+        border-radius: 45% 45% 48% 48%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-align: center;
+        color: #0d0c0c;
+        text-shadow: 0 1px rgba(255, 255, 255, 0.35);
+        box-shadow: var(--pumpkin-shadow);
+        cursor: grab;
+        transform-origin: center;
+        animation: bob 4s ease-in-out infinite;
+      }
+
+      .pumpkin::after {
+        content: "";
+        position: absolute;
+        width: 12px;
+        height: 22px;
+        top: -14px;
+        border-radius: 50% 50% 0 0;
+        background: #3f5427;
+        box-shadow: inset 0 -4px rgba(0, 0, 0, 0.2);
+      }
+
+      .pumpkin.dragging {
+        cursor: grabbing;
+        animation-play-state: paused;
+        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.45);
+      }
+
+      @keyframes bob {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-2deg);
+        }
+        50% {
+          transform: translateY(6px) rotate(2deg);
+        }
+      }
+
+      .slot-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.75rem;
+        padding-bottom: 0.5rem;
+      }
+
+      .slot {
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 0.75rem;
+        min-height: 90px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        transition: transform 0.2s ease, border 0.2s ease;
+      }
+
+      .slot h3 {
+        margin: 0;
+        font-size: 0.9rem;
+        letter-spacing: 0.05em;
+      }
+
+      .slot .fill {
+        flex: 1;
+        border-radius: 10px;
+        border: 1px dashed rgba(255, 255, 255, 0.2);
+        padding: 0.35rem;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.25rem;
+      }
+
+      .slot .fill span {
+        display: block;
+        height: 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.2);
+        opacity: 0.25;
+      }
+
+      .slot.ready {
+        transform: translateY(-4px) scale(1.01);
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+
+      .slot .fill span.filled {
+        opacity: 1;
+      }
+
+      .seed-container {
+        position: absolute;
+        pointer-events: none;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .seed {
+        position: absolute;
+        width: 6px;
+        height: 12px;
+        border-radius: 50% / 40%;
+        background: var(--seed);
+        opacity: 0;
+      }
+
+      @keyframes seed-burst {
+        0% {
+          transform: translate(0, 0) scale(0.2) rotate(0deg);
+          opacity: 1;
+        }
+        80% {
+          opacity: 1;
+        }
+        100% {
+          transform: translate(var(--tx), var(--ty)) scale(0.8) rotate(1turn);
+          opacity: 0;
+        }
+      }
+
+      @media (max-width: 768px) {
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .slot {
+          min-height: 110px;
+        }
+      }
     </style>
   </head>
   <body>
-    <iframe src="https://acc-guide.zapier.app"></iframe>
+    <div class="game-shell">
+      <header>
+        <div>
+          <h1>Pumpkin Seed Frenzy</h1>
+          <p class="instructions">
+            Pull a pumpkin out of the bin and drag it into its matching bar slot.
+            When three of the same variety line up, they explode into a shower of
+            seeds and award points.
+          </p>
+        </div>
+        <div class="scoreboard">
+          <span>Score</span>
+          <strong id="score">0</strong>
+        </div>
+      </header>
+      <div class="playfield">
+        <div class="bin" id="pumpkinBin"></div>
+        <div class="slot-bar" id="slotBar"></div>
+      </div>
+      <div class="seed-container" id="seedLayer"></div>
+    </div>
+
+    <script>
+      const pumpkinTypes = [
+        { name: "Jack O'Lantern", color: "#ff7b2d", highlight: "#ffb347" },
+        { name: "Enchanted", color: "#d05eff", highlight: "#f6a6ff" },
+        { name: "Cinderella", color: "#ff4734", highlight: "#ff8f6b" },
+        { name: "Tiger Stripe", color: "#ffb52e", highlight: "#ffe769" },
+        { name: "Porcelain Doll", color: "#fef0e5", highlight: "#ffd8c3" },
+        { name: "Cider", color: "#db6400", highlight: "#ff9d5c" },
+        { name: "Small Pie", color: "#ff934f", highlight: "#ffd067" },
+        { name: "Crystal Star", color: "#f6f3d7", highlight: "#fff8bb" }
+      ];
+
+      const bin = document.getElementById("pumpkinBin");
+      const slotBar = document.getElementById("slotBar");
+      const seedLayer = document.getElementById("seedLayer");
+      const scoreEl = document.getElementById("score");
+      const targetPerRow = 3;
+      let score = 0;
+
+      const slotState = new Map();
+
+      function createSlot(type) {
+        const slot = document.createElement("div");
+        slot.className = "slot";
+        slot.dataset.type = type.name;
+        slot.style.setProperty("--accent", type.highlight);
+        slot.innerHTML = `
+          <h3>${type.name}</h3>
+          <div class="fill">
+            ${Array.from({ length: targetPerRow })
+              .map(() => "<span></span>")
+              .join("")}
+          </div>
+        `;
+        slotBar.appendChild(slot);
+        slotState.set(type.name, 0);
+        return slot;
+      }
+
+      pumpkinTypes.forEach(createSlot);
+
+      function spawnPumpkin(type = null) {
+        const pumpkinType = type ||
+          pumpkinTypes[Math.floor(Math.random() * pumpkinTypes.length)];
+        const pumpkin = document.createElement("div");
+        pumpkin.className = "pumpkin";
+        pumpkin.dataset.type = pumpkinType.name;
+        pumpkin.style.background = `radial-gradient(circle at 30% 30%, ${pumpkinType.highlight}, ${pumpkinType.color})`;
+        pumpkin.textContent = pumpkinType.name.split(" ")[0];
+
+        const binRect = bin.getBoundingClientRect();
+        const size = Math.min(Math.max(binRect.width / 9, 60), 90);
+        const maxX = binRect.width - size - 20;
+        const maxY = binRect.height - size - 20;
+        pumpkin.style.left = `${Math.random() * maxX + 10}px`;
+        pumpkin.style.top = `${Math.random() * maxY + 10}px`;
+        pumpkin.style.width = `${size}px`;
+
+        pumpkin.style.animationDelay = `${Math.random() * 4}s`;
+
+        bin.appendChild(pumpkin);
+        makeDraggable(pumpkin);
+      }
+
+      function makeDraggable(pumpkin) {
+        let pointerId = null;
+        let offsetX = 0;
+        let offsetY = 0;
+        let originalParent = pumpkin.parentElement;
+
+        function onPointerDown(event) {
+          pointerId = event.pointerId;
+          pumpkin.setPointerCapture(pointerId);
+          const rect = pumpkin.getBoundingClientRect();
+          offsetX = event.clientX - rect.left;
+          offsetY = event.clientY - rect.top;
+          pumpkin.classList.add("dragging");
+          pumpkin.style.zIndex = 5;
+        }
+
+        function onPointerMove(event) {
+          if (event.pointerId !== pointerId) return;
+          pumpkin.style.left = `${event.clientX - bin.getBoundingClientRect().left - offsetX}px`;
+          pumpkin.style.top = `${event.clientY - bin.getBoundingClientRect().top - offsetY}px`;
+
+          document.querySelectorAll(".slot").forEach((slot) => {
+            const rect = slot.getBoundingClientRect();
+            if (
+              event.clientX >= rect.left &&
+              event.clientX <= rect.right &&
+              event.clientY >= rect.top &&
+              event.clientY <= rect.bottom
+            ) {
+              slot.classList.add("ready");
+            } else {
+              slot.classList.remove("ready");
+            }
+          });
+        }
+
+        function onPointerUp(event) {
+          if (event.pointerId !== pointerId) return;
+          pumpkin.releasePointerCapture(pointerId);
+          pointerId = null;
+          pumpkin.classList.remove("dragging");
+          pumpkin.style.zIndex = 1;
+          document.querySelectorAll(".slot").forEach((slot) =>
+            slot.classList.remove("ready")
+          );
+
+          const dropTarget = document.elementFromPoint(
+            event.clientX,
+            event.clientY
+          );
+          const slot = dropTarget?.closest?.(".slot");
+
+          if (slot && slot.dataset.type === pumpkin.dataset.type) {
+            handleCorrectDrop(slot, pumpkin);
+          } else {
+            // Snap back somewhere random in the bin
+            const binRect = bin.getBoundingClientRect();
+            pumpkin.style.left = `${Math.random() * (binRect.width - 80) + 10}px`;
+            pumpkin.style.top = `${Math.random() * (binRect.height - 80) + 10}px`;
+          }
+        }
+
+        pumpkin.addEventListener("pointerdown", onPointerDown);
+        pumpkin.addEventListener("pointermove", onPointerMove);
+        pumpkin.addEventListener("pointerup", onPointerUp);
+        pumpkin.addEventListener("pointercancel", onPointerUp);
+      }
+
+      function handleCorrectDrop(slot, pumpkin) {
+        pumpkin.remove();
+        incrementSlot(slot);
+        spawnPumpkin();
+      }
+
+      function incrementSlot(slot) {
+        const type = slot.dataset.type;
+        let count = slotState.get(type) || 0;
+        const cells = slot.querySelectorAll(".fill span");
+        if (count < targetPerRow) {
+          cells[count].classList.add("filled");
+          cells[count].style.background = pumpkinTypes.find(
+            (p) => p.name === type
+          ).highlight;
+        }
+        count += 1;
+        slotState.set(type, count);
+
+        if (count >= targetPerRow) {
+          triggerMatch(slot);
+        }
+      }
+
+      function triggerMatch(slot) {
+        score += 250;
+        scoreEl.textContent = score.toLocaleString();
+        createSeedExplosion(slot);
+        slotState.set(slot.dataset.type, 0);
+        slot.querySelectorAll(".fill span").forEach((span) =>
+          span.classList.remove("filled")
+        );
+      }
+
+      function createSeedExplosion(slot) {
+        const rect = slot.getBoundingClientRect();
+        const hostRect = seedLayer.getBoundingClientRect();
+        const originX = rect.left + rect.width / 2 - hostRect.left;
+        const originY = rect.top + rect.height / 2 - hostRect.top;
+
+        const seeds = 25;
+        for (let i = 0; i < seeds; i++) {
+          const seed = document.createElement("div");
+          seed.className = "seed";
+          const spread = 140;
+          const tx = (Math.random() - 0.5) * spread;
+          const ty = -Math.random() * spread;
+          seed.style.setProperty("--tx", `${tx}px`);
+          seed.style.setProperty("--ty", `${ty}px`);
+          seed.style.left = `${originX}px`;
+          seed.style.top = `${originY}px`;
+          seed.style.animation = `seed-burst ${0.7 + Math.random() * 0.4}s ease-out forwards`;
+          seedLayer.appendChild(seed);
+          setTimeout(() => seed.remove(), 1200);
+        }
+      }
+
+      function seedBin(initial = 12) {
+        for (let i = 0; i < initial; i++) {
+          setTimeout(() => spawnPumpkin(), i * 80);
+        }
+      }
+
+      seedBin();
+    </script>
   </body>
 </html>
